@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/google/go-querystring/query"
 	"net/http"
 	"net/url"
+	"reflect"
 )
 
 type API struct {
@@ -23,8 +25,8 @@ func New(baseUrl string) *API {
 	return a
 }
 
-func (c *API) NewRequest(method, uri string, body interface{}) (*http.Request, error) {
-	rel, err := url.Parse(uri)
+func (c *API) NewRequest(method, uri string, opt interface{}, body interface{}) (*http.Request, error) {
+	rel, err := addOptions(uri, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -65,4 +67,30 @@ func (c *API) Do(req *http.Request, v interface{}) (*http.Response, error) {
 		err = json.NewDecoder(resp.Body).Decode(v)
 	}
 	return resp, err
+}
+
+// addOptions adds the parameters in opt as URL query parameters to s.  opt
+// must be a struct whose fields may contain "url" tags.
+func addOptions(s string, opt interface{}) (*url.URL, error) {
+	u, err := url.Parse(s)
+	if err != nil {
+		return nil, err
+	}
+	if opt == nil {
+		return u, nil
+	}
+
+	v := reflect.ValueOf(opt)
+	if v.Kind() == reflect.Ptr && v.IsNil() {
+		// No query string to add
+		return u, nil
+	}
+
+	qs, err := query.Values(opt)
+	if err != nil {
+		return nil, err
+	}
+
+	u.RawQuery = qs.Encode()
+	return u, nil
 }
